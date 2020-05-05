@@ -1,0 +1,15 @@
+**/Makefile
+**/CMake*
+**/cmake*
+**/*_autogen
+**/compile_commands.json
+**/.clangd
+**/.idea
+**/target
+**/node_modules
+**/.svn
+
+# Cider files
+**/.cpcache
+**/.nrepl-port
+**/trace.edn
