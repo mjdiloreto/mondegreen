@@ -1,0 +1,12 @@
+* Mondegreen Generation in Clojure
+#+BEGIN_QUOTE
+"A mondegreen /ˈmɒndɪɡriːn/ is a mishearing or misinterpretation of a phrase as a result of near-homophony, in a way that gives it a new meaning."
+https://en.wikipedia.org/wiki/Mondegreen
+#+END_QUOTE
+Have you ever played the game where you guess the meaning of a written sentence that, at first, appears to be complete gibberish, but after being read aloud becomes obvious?
+[[https://www.youtube.com/watch?v=88i2RV5tcTU][This game.]] Have you ever played this game?
+From what I've found the linguistic term that can be used to describe this game is "Mondegreen", though I think [[https://en.wikipedia.org/wiki/Juncture#Oronyms][oronynm]] might be more appropriate.
+
+Whatever the appropriate term, I think this game poses an interesting challenge -- figure out how to generate the appropriate gibberish given an arbitrary sentence.
+I also want to write (what I consider to be) a non-trivial program using Clojure.
+I will try to make the source as readable as possible to hopefully solicit the advice of more experienced Clojurians.
