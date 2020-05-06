@@ -10,27 +10,16 @@ An alternative name for this project could be \"oronyms\" https://en.wikipedia.o
 2. Create a scoring function, that given 2 phonemes gives a score reflecting how close they sound.
 2.1 alternatively just create a map of phoneme -> [phoneme...] that tells whether a certain phoneme can replace another.
 
-3? Craete a reverse mapping
+3? Create a reverse mapping
  list(phoneme), map(phoneme -> list(phoneme)) -> word
 such that words match a list of phonemes given the list of acceptable replacements of phonemes.
 This would require a direct reverse mapping of [1].
-
-Algorithm:
-Input <- A sentence, the answer to the mondegreen.
-input -> flat phoneme list, no distinctions between words (represents prnunciation of all phonemes with no cadence)
-
-
-Fill in the list with words that match the list
 ")
 
 ;; Dictionary files
 (def raw-dict (slurp "resources/cmudict-0.7b"))
 (def raw-phones (slurp "resources/cmudict-0.7b.phones"))
 (def raw-symbols (slurp "resources/cmudict-0.7b.symbols"))
-
-(comment
-  "Make an equivalent threaded program for this"
-  (set (take-nth 2 ((partial mapcat #(string/split % #"\t")) (string/split-lines raw-phones)))))
 
 (def syms
   (->>
@@ -79,29 +68,28 @@ Fill in the list with words that match the list
 
 (comment
   "Takes into account conjunctions and hyphenations"
-  (word->pronunciations "THIS")
-  (word->pronunciations "THIS'LL")
-  (word->pronunciations "MORNING")
-  (word->pronunciations "MORNING'S")
-  (word->pronunciations "ICE-CREAM"))
+  (word->pronunciations "THIS")        ;  [("DH" "IH" "S") ("DH" "IH" "S")]
+  (word->pronunciations "THIS'LL")     ;  [("DH" "IH" "S" "AH" "L") ("DH" "IH" "S" "AH" "L")]
+  )
 
 (comment
   "These are common substitutions for mondegreens, A few key substitutions."
-  (word->pronunciations "THEME")
-  (word->pronunciations "AWNING")
-  (word->pronunciations "THE")
-  (word->pronunciations "MORNING")
+  (word->pronunciations "THEME")       ;  [("TH" "IY" "M")]
+  (word->pronunciations "AWNING")      ;  [("AA" "N" "IH" "NG")]
+  (word->pronunciations "THE")         ;  [("DH" "AH") ("DH" "AH") ("DH" "IY")]
+  (word->pronunciations "MORNING")     ;  [("M" "AO" "R" "N" "IH" "NG")]
 
-  (word->pronunciations "THIS")
-  (word->pronunciations "GUY")
-  (word->pronunciations "THE")
-  (word->pronunciations "SKY")
+  (word->pronunciations "THIS")        ;  [("DH" "IH" "S") ("DH" "IH" "S")]
+  (word->pronunciations "GUY")         ;  [("G" "AY")]
+  (word->pronunciations "THE")         ;  [("DH" "AH") ("DH" "AH") ("DH" "IY")] ; when multiple pronunciations are equal, the only difference was syllable stress.
+  (word->pronunciations "SKY")         ;  [("S" "K" "AY")]
 
-  (word->pronunciations "ICE")
-  (word->pronunciations "CREAM")
-  (word->pronunciations "ICE-CREAM")
-  (word->pronunciations "I")
-  (word->pronunciations "SCREAM"))
+  (word->pronunciations "ICE")         ;  [("AY" "S")]
+  (word->pronunciations "CREAM")       ;  [("K" "R" "IY" "M")]
+  (word->pronunciations "ICE-CREAM")   ;  [("AY" "S" "K" "R" "IY" "M")]
+  (word->pronunciations "I")           ;  [("AY")]
+  (word->pronunciations "SCREAM")      ;  [("S" "K" "R" "IY" "M")]
+  )
 
 ;; To answer questions about the sequences of phonemes, we construct a trie and map over it with the appropriate substitution function.
 (defn word->nested-map
@@ -126,12 +114,6 @@ Fill in the list with words that match the list
        (apply f maps)))
    maps))
 
-(comment
-  (deep-merge-with (fn [a b] (if (nil? a) b a))
-                   (word->nested-map '("A" "B" "C" "D") "ABCD")
-                   (word->nested-map '("A" "B") "AB")
-                   (word->nested-map '("A" "B" "C") "ABC")))
-
 (defn merge-non-nil
   [a b]
   (if (nil? a) b
@@ -154,7 +136,6 @@ Fill in the list with words that match the list
 
 (comment
   (pronunciations-trie "DH")
-  (pronunciation->word '("DH" "IY"))
   (pronun-valid? '("DH" "IY"))
   (pronun-valid? '("DH" "IY")))
 
@@ -167,10 +148,36 @@ Fill in the list with words that match the list
         (clojure.string/split #"\s"))))
 
 (comment
-  ([("P" "L" "IY" "Z")] [("N" "AA" "T")] [("W" "AY" "L") ("HH" "W" "AY" "L")] [("AY" "M") ("AH" "M")] [("IY" "T" "IH" "NG")])
+  "This example /should/ be within the reach of the equivalence class-based solution. Only substitutions are Z->S and AA->AO."
   (parse-sentence "please not while I'm eating")
-  ([("P" "L" "IY")] [("S" "N" "AO" "T")] [("W" "AY") ("HH" "W" "AY")] [("L" "AY")] [("M" "IY" "T" "IH" "NG")])
-  (parse-sentence "plea snot why lie meeting"))
+  ([("P" "L" "IY" "Z")]
+   [("N" "AA" "T")]
+   [("W" "AY" "L") ("HH" "W" "AY" "L")]
+   [("AY" "M") ("AH" "M")]
+   [("IY" "T" "IH" "NG")])
+
+  (parse-sentence "plea snot why lie meeting")
+  ([("P" "L" "IY")]
+   [("S" "N" "AO" "T")]
+   [("W" "AY") ("HH" "W" "AY")]
+   [("L" "AY")]
+   [("M" "IY" "T" "IH" "NG")]))
+
+(defn sentence-pronunciations
+  "Given a sentence represented by lists of words, represented each by lists of pronunciations, return all ways a sentence could be pronounced."
+  [sentence]
+  (map flatten (reduce (fn [acc el] (combo/cartesian-product acc el)) sentence)))
+
+(comment
+  (sentence-pronunciations (parse-sentence "I AM"))
+  (("AY" "AE" "M")
+   ("AY" "EY" "EH" "M"))
+
+  (sentence-pronunciations (parse-sentence "NOT WHILE I'M EATING"))
+  (("N" "AA" "T" "W" "AY" "L" "AY" "M" "IY" "T" "IH" "NG")
+   ("N" "AA" "T" "W" "AY" "L" "AH" "M" "IY" "T" "IH" "NG")
+   ("N" "AA" "T" "HH" "W" "AY" "L" "AY" "M" "IY" "T" "IH" "NG")
+   ("N" "AA" "T" "HH" "W" "AY" "L" "AH" "M" "IY" "T" "IH" "NG")))
 
 (def equivalence-classes
   "It would be better to base these substitutions on some kind of linguistic data. I bet it exists."
@@ -205,8 +212,7 @@ Fill in the list with words that match the list
    ])
 
 (def valid-replacements
-  "Which phonemes can replace others and still sound reasonable? TODO add support for multiple phonemes or deletion.
-  This might be more tersely described by sets, since (valid-replacement p1 p2) implies (valid-replacement p2 p1)."
+  "Which phonemes can replace others and still sound reasonable? TODO add support for multiple phonemes or deletion."
   {
    "AA" ["AA"]
    "AE" ["AE"]
