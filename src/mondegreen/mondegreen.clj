@@ -117,8 +117,8 @@ This would require a direct reverse mapping of [1].
 (defn merge-non-nil
   [a b]
   (if (nil? a) b
-    (if (nil? b) a
-      (into a b))))
+      (if (nil? b) a
+          (into a b))))
 
 (def pronunciations-trie
   (apply
@@ -163,10 +163,10 @@ This would require a direct reverse mapping of [1].
    [("L" "AY")]
    [("M" "IY" "T" "IH" "NG")]))
 
-(defn sentence-pronunciations
+(defn sentence->pronunciations
   "Given a sentence represented by lists of words, represented each by lists of pronunciations, return all ways a sentence could be pronounced."
   [sentence]
-  (map flatten (reduce (fn [acc el] (combo/cartesian-product acc el)) sentence)))
+  (map flatten (reduce combo/cartesian-product sentence)))
 
 (comment
   (sentence-pronunciations (parse-sentence "I AM"))
@@ -179,10 +179,35 @@ This would require a direct reverse mapping of [1].
    ("N" "AA" "T" "HH" "W" "AY" "L" "AY" "M" "IY" "T" "IH" "NG")
    ("N" "AA" "T" "HH" "W" "AY" "L" "AH" "M" "IY" "T" "IH" "NG")))
 
+(defn pronunciation->sentence
+  "Can this series of phonemes be parsed as a collection of English words? Find one answer containing no words from the set of words in the original sentence."
+  [pronunciation original-sentence]
+  (letfn [(word? [phones]
+            (and (not (original-sentence phones))
+                 (:word (pronun-valid? phones))))
+          (something [prev-phones next-phones]
+            (let [answer (word? prev-phones)]
+              (cond
+                (empty? next-phones) answer  ; The final phonemes must consitute a word.
+                answer (cons answer (something (vector (first next-phones)) (rest next-phones)))
+                :else (something (conj prev-phones (first next-phones))
+                                 (rest next-phones)))))]
+    (something (vector (first pronunciation)) (rest pronunciation))))
+
+(defn mondegreen
+  [sentence]
+  (let [parsed (parse-sentence sentence)
+        original-sentence (set (mapcat identity parsed))
+        pronunciations (sentence->pronunciations parsed)]
+    (pronunciation->sentence (first pronunciations) original-sentence)))
+
+(comment
+  (mondegreen "please not while I'm eating")
+  )
+
 (def equivalence-classes
   "It would be better to base these substitutions on some kind of linguistic data. I bet it exists."
-  [
-   #{"AA" "AO" "AW" "AH" "UH"}
+  [#{"AA" "AO" "AW" "AH" "UH"}
    #{"AY"}
    #{"B"}
    #{"CH"}
@@ -208,13 +233,11 @@ This would require a direct reverse mapping of [1].
    #{"V"}
    #{"W"}
    #{"Y"}
-   #{"S" "Z"}
-   ])
+   #{"S" "Z"}])
 
 (def valid-replacements
   "Which phonemes can replace others and still sound reasonable? TODO add support for multiple phonemes or deletion."
-  {
-   "AA" ["AA"]
+  {"AA" ["AA"]
    "AE" ["AE"]
    "AH" ["AH"]
    "AO" ["AO"]
