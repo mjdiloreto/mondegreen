@@ -179,32 +179,6 @@ This would require a direct reverse mapping of [1].
    ("N" "AA" "T" "HH" "W" "AY" "L" "AY" "M" "IY" "T" "IH" "NG")
    ("N" "AA" "T" "HH" "W" "AY" "L" "AH" "M" "IY" "T" "IH" "NG")))
 
-(defn pronunciation->sentence
-  "Can this series of phonemes be parsed as a collection of English words? Find one answer containing no words from the set of words in the original sentence."
-  [pronunciation original-sentence]
-  (letfn [(word? [phones]
-            (and (not (original-sentence phones))
-                 (:word (pronun-valid? phones))))
-          (something [prev-phones next-phones]
-            (let [answer (word? prev-phones)]
-              (cond
-                (empty? next-phones) answer  ; The final phonemes must consitute a word.
-                answer (cons answer (something (vector (first next-phones)) (rest next-phones)))
-                :else (something (conj prev-phones (first next-phones))
-                                 (rest next-phones)))))]
-    (something (vector (first pronunciation)) (rest pronunciation))))
-
-(defn mondegreen
-  [sentence]
-  (let [parsed (parse-sentence sentence)
-        original-sentence (set (mapcat identity parsed))
-        pronunciations (sentence->pronunciations parsed)]
-    (pronunciation->sentence (first pronunciations) original-sentence)))
-
-(comment
-  (mondegreen "please not while I'm eating")
-  )
-
 (def equivalence-classes
   "It would be better to base these substitutions on some kind of linguistic data. I bet it exists."
   [#{"AA" "AO" "AW" "AH" "UH"}
@@ -235,47 +209,88 @@ This would require a direct reverse mapping of [1].
    #{"Y"}
    #{"S" "Z"}])
 
-(def valid-replacements
-  "Which phonemes can replace others and still sound reasonable? TODO add support for multiple phonemes or deletion."
-  {"AA" ["AA"]
-   "AE" ["AE"]
-   "AH" ["AH"]
-   "AO" ["AO"]
-   "AW" ["AW"]
-   "AY" ["AY"]
-   "B" ["B"]
-   "CH" ["CH"]
-   "D" ["D"]
-   "DH" ["DH"]
-   "EH" ["EH"]
-   "ER" ["ER"]
-   "EY" ["EY"]
-   "F" ["F"]
-   "G" ["G"]
-   "HH" ["HH"]
-   "IH" ["IH"]
-   "IY" ["IY"]
-   "JH" ["JH"]
-   "K" ["K"]
-   "L" ["L"]
-   "M" ["M"]
-   "N" ["N"]
-   "NG" ["NG"]
-   "OW" ["OW"]
-   "OY" ["OY"]
-   "P" ["P"]
-   "R" ["R"]
-   "S" ["S"]
-   "SH" ["SH"]
-   "T" ["T"]
-   "TH" ["TH"]
-   "UH" ["UH"]
-   "UW" ["UW"]
-   "V" ["V"]
-   "W" ["W"]
-   "Y" ["Y"]
-   "Z" ["Z"]
-   "ZH" ["ZH"]})
+(defn valid-replacements
+  "Which phonemenes can be used to represent the given one?"
+  [phone]
+  (mapcat (partial apply vector) (filter #(% phone) equivalence-classes)))
+
+(defn pronunciation->sentence
+  "Can this series of phonemes be parsed as a collection of English words? Find one answer containing no words from the set of words in the original sentence."
+  [pronunciation original-sentence]
+  (letfn [(word? [phones]
+            (and (not (original-sentence phones))
+                 (:word (pronun-valid? phones))))
+          (find-pronuns [prev-phones next-phones]
+            (let [answer (word? prev-phones)]
+              (cond
+                (empty? next-phones) answer  ; The final phonemes must consitute a word.
+                answer (cons answer (find-pronuns [] next-phones))
+                :else (reduce (fn [acc x] (or acc (find-pronuns (conj prev-phones x) (rest next-phones))))
+                              nil
+                              (valid-replacements (first next-phones))))))]
+    (find-pronuns [] pronunciation)))
+
+(defn mondegreen
+  [sentence]
+  (let [parsed (parse-sentence sentence)
+        original-sentence (set (mapcat identity parsed))
+        pronunciations (sentence->pronunciations parsed)]
+    (pronunciation->sentence (first pronunciations) original-sentence)))
+
+(comment
+  (mondegreen "please not while I'm eating")
+  (mondegreen "I scream")
+  (mondegreen "The sky")
+  ;; No backtracking in the search means this only works in some cases.
+  )
+
+
+
+
+
+
+(comment
+  (def valid-replacements
+    "Which phonemes can replace others and still sound reasonable? TODO add support for multiple phonemes or deletion."
+    {"AA" ["AA"]
+     "AE" ["AE"]
+     "AH" ["AH"]
+     "AO" ["AO"]
+     "AW" ["AW"]
+     "AY" ["AY"]
+     "B" ["B"]
+     "CH" ["CH"]
+     "D" ["D"]
+     "DH" ["DH"]
+     "EH" ["EH"]
+     "ER" ["ER"]
+     "EY" ["EY"]
+     "F" ["F"]
+     "G" ["G"]
+     "HH" ["HH"]
+     "IH" ["IH"]
+     "IY" ["IY"]
+     "JH" ["JH"]
+     "K" ["K"]
+     "L" ["L"]
+     "M" ["M"]
+     "N" ["N"]
+     "NG" ["NG"]
+     "OW" ["OW"]
+     "OY" ["OY"]
+     "P" ["P"]
+     "R" ["R"]
+     "S" ["S"]
+     "SH" ["SH"]
+     "T" ["T"]
+     "TH" ["TH"]
+     "UH" ["UH"]
+     "UW" ["UW"]
+     "V" ["V"]
+     "W" ["W"]
+     "Y" ["Y"]
+     "Z" ["Z"]
+     "ZH" ["ZH"]}))
 
 (comment "
   IDEA 1: Convert the English Phonetic Mouth Chart to a function describing the 'distance' between phonemes.
