@@ -237,79 +237,53 @@ This would require a direct reverse mapping of [1].
         pronunciations (sentence->pronunciations parsed)]
     (pronunciation->sentence (first pronunciations) original-sentence)))
 
+(defn mondegreen2
+  [sentence]
+  (let [parsed (parse-sentence sentence)
+        original-sentence (set (mapcat identity parsed))
+        pronunciations (sentence->pronunciations parsed)
+        selected-pronunciation (first pronunciations)
+        partitions (selected-pronunciation)]
+    (pronunciation->sentence selected-pronunciation original-sentence)))
+
+;; Ask someone if (list (list (list (first coll)))) is actually an issue. (I realize `(((~(first coll))))) works, but is it better?)
+;; I don't imagine functions dealing with more deeply nested structures than this without an
+;; intervening layer of abstraction, but maybe I'm wrong and doing things this way dooms
+;; me to eternal suffering in hell '\_(o-o)_/'
+(defn reverse-order-partitions
+  "Partition the seq in all ways that maintain order."
+  [coll]
+  (if (empty? coll)
+    '()
+    (loop [c (rest coll) acc (list (list (list (first coll))))]
+      (if (empty? c)
+        acc
+        (recur (rest c)
+               (mapcat (fn [part] (list (list* (cons (first c) (first part)) (rest part))  ; TODO modify this to test for validity in my app.
+                                        (list* (list (first c)) part)))
+                       acc))))))
+
+(comment
+  (reverse-order-partitions [1])
+  (combo/partitions [1])
+  (reverse-order-partitions [1 2])
+  (combo/partitions [1 2])
+  (reverse-order-partitions [1 2 3])
+  (combo/partitions [1 2 3])
+  (reverse-order-partitions [1 2 3 4])
+  (combo/partitions [1 2 3 4])
+  )
+
+(defn reverse-order-partitions2
+  [coll]
+  (reduce (map (fn [acc x] (map #(cons x %))))
+          '()))
+
 (comment
   (mondegreen "please not while I'm eating")
-  (mondegreen "I scream")
+  (mondegreen2 "I scream")
   (mondegreen "The sky")
+  (mondegreen "Baby duckling")
   ;; No backtracking in the search means this only works in some cases.
   )
 
-
-
-
-
-
-(comment
-  (def valid-replacements
-    "Which phonemes can replace others and still sound reasonable? TODO add support for multiple phonemes or deletion."
-    {"AA" ["AA"]
-     "AE" ["AE"]
-     "AH" ["AH"]
-     "AO" ["AO"]
-     "AW" ["AW"]
-     "AY" ["AY"]
-     "B" ["B"]
-     "CH" ["CH"]
-     "D" ["D"]
-     "DH" ["DH"]
-     "EH" ["EH"]
-     "ER" ["ER"]
-     "EY" ["EY"]
-     "F" ["F"]
-     "G" ["G"]
-     "HH" ["HH"]
-     "IH" ["IH"]
-     "IY" ["IY"]
-     "JH" ["JH"]
-     "K" ["K"]
-     "L" ["L"]
-     "M" ["M"]
-     "N" ["N"]
-     "NG" ["NG"]
-     "OW" ["OW"]
-     "OY" ["OY"]
-     "P" ["P"]
-     "R" ["R"]
-     "S" ["S"]
-     "SH" ["SH"]
-     "T" ["T"]
-     "TH" ["TH"]
-     "UH" ["UH"]
-     "UW" ["UW"]
-     "V" ["V"]
-     "W" ["W"]
-     "Y" ["Y"]
-     "Z" ["Z"]
-     "ZH" ["ZH"]}))
-
-(comment "
-  IDEA 1: Convert the English Phonetic Mouth Chart to a function describing the 'distance' between phonemes.
-  https://github.com/open-source-ideas/open-source-ideas/issues/58 <- This image.
-
-  The vowel chart can be described as a graph.
-
-  pros: Can generate new mondegreens from first principles.
-  cons: Might be difficult to tune the mapping function(s)
-        Might not be able to account for single phonemes that substitute for multiple (e.g. AO+R -> AA)
-          This could potentially be fixed by researching phonetic substitutions common in American/English dialects.
-          Obviously this wouldn't then be from 'first principles', but it would match the real-world linguistic phonemena.
-")
-
-(comment "
-  IDEA 2:
-  Find many examples of mondegreen/oronyms, and discover which phonemes are swapped for others.
-
-  pros: Will easily be able to tell which substitutions of phonemes are valid (even when a single phoneme maps to multiple!)
-        If a dataset exists, might be easier to implement.
-  cons: Will only be able to replicate the types of mondegreens that other people have already found. Might not produce great variation.
-")
