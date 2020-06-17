@@ -230,6 +230,22 @@ This would require a direct reverse mapping of [1].
                               (valid-replacements (first next-phones))))))]
     (find-pronuns [] pronunciation)))
 
+(defn search-shortest-words-first
+  [pronunciation original-sentence]
+  (letfn [(word? [phones]
+            (and (not (original-sentence phones))
+                 (:word (pronun-valid? phones))))]
+    (loop [current-phones (vector (first pronunciation)) remaining-phones (rest pronunciation)]
+      (let [word (word? current-phones)]
+        (cond (and word (empty? remaining-phones)) word ; return the last word, or nil if none found
+              (empty? remaining-phones) nil ; there is no solution here
+              word (if-let [rest-of-sentence (search-shortest-words-first remaining-phones original-sentence)]
+                     (cons word rest-of-sentence)
+                     (recur (conj current-phones (first remaining-phones))
+                            (rest remaining-phones)))
+              :else (recur (conj current-phones (first remaining-phones))
+                           (rest remaining-phones)))))))
+
 (defn mondegreen
   [sentence]
   (let [parsed (parse-sentence sentence)
@@ -243,8 +259,8 @@ This would require a direct reverse mapping of [1].
         original-sentence (set (mapcat identity parsed))
         pronunciations (sentence->pronunciations parsed)
         selected-pronunciation (first pronunciations)
-        partitions (selected-pronunciation)]
-    (pronunciation->sentence selected-pronunciation original-sentence)))
+        partitions (combo/partitions selected-pronunciation)]
+    (search-shortest-words-first selected-pronunciation original-sentence)))
 
 ;; Ask someone if (list (list (list (first coll)))) is actually an issue. (I realize `(((~(first coll))))) works, but is it better?)
 ;; I don't imagine functions dealing with more deeply nested structures than this without an
@@ -263,7 +279,7 @@ This would require a direct reverse mapping of [1].
                                         (list* (list (first c)) part)))
                        acc))))))
 
-(comment
+(comment 
   (reverse-order-partitions [1])
   (combo/partitions [1])
   (reverse-order-partitions [1 2])
@@ -280,10 +296,9 @@ This would require a direct reverse mapping of [1].
           '()))
 
 (comment
-  (mondegreen "please not while I'm eating")
+  (mondegreen2 "please not while I'm eating")
   (mondegreen2 "I scream")
-  (mondegreen "The sky")
-  (mondegreen "Baby duckling")
-  ;; No backtracking in the search means this only works in some cases.
+  (mondegreen2 "The sky")
+  (mondegreen2 "Baby duckling")
   )
 
