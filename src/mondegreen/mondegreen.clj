@@ -220,16 +220,22 @@ This would require a direct reverse mapping of [1].
   (letfn [(word? [phones]
             (and (not (original-sentence phones))
                  (:word (pronun-valid? phones))))
+          (search-substitutions
+            [prev-phones next-phones]
+            (reduce (fn [acc x] (or acc (find-pronuns (conj prev-phones x) (rest next-phones))))
+                    nil
+                    (valid-replacements (first next-phones))))
           (find-pronuns [prev-phones next-phones]
             (let [answer (word? prev-phones)]
               (cond
-                (empty? next-phones) answer  ; The final phonemes must consitute a word.
-                answer (cons answer (find-pronuns [] next-phones))
-                :else (reduce (fn [acc x] (or acc (find-pronuns (conj prev-phones x) (rest next-phones))))
-                              nil
-                              (valid-replacements (first next-phones))))))]
+                (empty? next-phones) (when answer (list answer))
+                answer (if-let [rest-of-sentence (find-pronuns [] next-phones)]
+                         (cons answer rest-of-sentence)
+                         (search-substitutions prev-phones next-phones))
+                :else (search-substitutions prev-phones next-phones))))]
     (find-pronuns [] pronunciation)))
 
+;; From scratch a second time to get more ideas.
 (defn search-shortest-words-first
   [pronunciation original-sentence]
   (letfn [(word? [phones]
@@ -237,7 +243,7 @@ This would require a direct reverse mapping of [1].
                  (:word (pronun-valid? phones))))]
     (loop [current-phones (vector (first pronunciation)) remaining-phones (rest pronunciation)]
       (let [word (word? current-phones)]
-        (cond (and word (empty? remaining-phones)) word ; return the last word, or nil if none found
+        (cond (and word (empty? remaining-phones)) (list word) ; return the last word, or nil if none found
               (empty? remaining-phones) nil ; there is no solution here
               word (if-let [rest-of-sentence (search-shortest-words-first remaining-phones original-sentence)]
                      (cons word rest-of-sentence)
@@ -253,6 +259,13 @@ This would require a direct reverse mapping of [1].
         pronunciations (sentence->pronunciations parsed)]
     (pronunciation->sentence (first pronunciations) original-sentence)))
 
+(comment
+  (mondegreen "please not while I'm eating")
+  (mondegreen "I scream")
+  (mondegreen "The sky")
+  (mondegreen "Baby duckling")
+  )
+
 (defn mondegreen2
   [sentence]
   (let [parsed (parse-sentence sentence)
@@ -261,6 +274,12 @@ This would require a direct reverse mapping of [1].
         selected-pronunciation (first pronunciations)
         partitions (combo/partitions selected-pronunciation)]
     (search-shortest-words-first selected-pronunciation original-sentence)))
+(comment
+  (mondegreen2 "please not while I'm eating")
+  (mondegreen2 "I scream")
+  (mondegreen2 "The sky")
+  (mondegreen2 "Baby duckling")
+  )
 
 ;; Ask someone if (list (list (list (first coll)))) is actually an issue. (I realize `(((~(first coll))))) works, but is it better?)
 ;; I don't imagine functions dealing with more deeply nested structures than this without an
@@ -295,10 +314,5 @@ This would require a direct reverse mapping of [1].
   (reduce (map (fn [acc x] (map #(cons x %))))
           '()))
 
-(comment
-  (mondegreen2 "please not while I'm eating")
-  (mondegreen2 "I scream")
-  (mondegreen2 "The sky")
-  (mondegreen2 "Baby duckling")
-  )
+
 
