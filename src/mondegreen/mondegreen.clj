@@ -1,5 +1,6 @@
 (ns mondegreen.mondegreen
   (:require [clojure.string :as string]
+            [clojure.set :refer [union]]
             [clojure.math.combinatorics :as combo]))
 
 (comment
@@ -144,8 +145,8 @@ This would require a direct reverse mapping of [1].
   (map word->pronunciations
        (->
         sentence
-        (clojure.string/upper-case)
-        (clojure.string/split #"\s"))))
+        (string/upper-case)
+        (string/split #"\s"))))
 
 (comment
   "This example /should/ be within the reach of the equivalence class-based solution. Only substitutions are Z->S and AA->AO."
@@ -182,7 +183,7 @@ This would require a direct reverse mapping of [1].
 (def equivalence-classes
   "It would be better to base these substitutions on some kind of linguistic data. I bet it exists."
   [#{"AA" "AO" "AW" "AH" "UH"}
-   #{"AY"}
+   #{"AY" "AE"}
    #{"B"}
    #{"CH"}
    #{"D"}
@@ -212,7 +213,7 @@ This would require a direct reverse mapping of [1].
 (defn valid-replacements
   "Which phonemenes can be used to represent the given one?"
   [phone]
-  (mapcat (partial apply vector) (filter #(% phone) equivalence-classes)))
+  (apply vector (apply union (filter #(% phone) equivalence-classes))))
 
 (defn pronunciation->sentence
   "Can this series of phonemes be parsed as a collection of English words? Find one answer containing no words from the set of words in the original sentence."
@@ -261,6 +262,9 @@ This would require a direct reverse mapping of [1].
 
 (comment
   (mondegreen "please not while I'm eating")
+  ; example of dirty substitutions I've seen in videos that people will want to work.
+  (mondegreen "alpha kenny body")
+  (mondegreen "I'll fuck any body")
   (mondegreen "I scream")
   (mondegreen "The sky")
   (mondegreen "Baby duckling")
