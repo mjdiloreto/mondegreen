@@ -10,3 +10,10 @@ From what I've found the linguistic term that can be used to describe this game 
 Whatever the appropriate term, I think this game poses an interesting challenge -- figure out how to generate the appropriate gibberish given an arbitrary sentence.
 I also want to write (what I consider to be) a non-trivial program using Clojure.
 I will try to make the source as readable as possible to hopefully solicit the advice of more experienced Clojurians.
+
+
+TODO
+- filter results based on minimum word popularity
+- Convert mondegreen namespace to cljc
+- Load resources in frontend
+- Copy prose from first-attempt to webapp.
