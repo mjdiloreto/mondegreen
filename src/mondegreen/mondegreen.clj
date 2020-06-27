@@ -22,6 +22,19 @@ This would require a direct reverse mapping of [1].
 (def raw-phones (slurp "resources/cmudict-0.7b.phones"))
 (def raw-symbols (slurp "resources/cmudict-0.7b.symbols"))
 
+(def raw-word-counts (slurp "resources/count_1w.txt"))
+
+(def word-counts
+  (->> raw-word-counts
+       (string/split-lines)
+       (mapcat #(string/split % #"\t"))
+       (take-nth 2)
+       (map string/upper-case)))
+
+(defn most-common-words
+  [n]
+  (set (take n word-counts)))
+
 (def syms
   (->>
    raw-phones
