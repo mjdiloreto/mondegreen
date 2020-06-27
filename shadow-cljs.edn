@@ -1,0 +1,21 @@
+{:source-paths ["src"]
+
+ :dependencies [[binaryage/devtools "0.9.10"] ; devtools automatically preloaded with "watch" and "compile" https://shadow-cljs.github.io/docs/UsersGuide.html#_preloads
+                [refactor-nrepl "2.4.0"]
+                [cider/cider-nrepl "0.18.0"] ; TODO setup alias to only require dev dependencies when dev
+                [reagent "1.0.0-alpha2"]]
+
+ :nrepl        {:port 3333}
+
+ :builds
+ {:app {:target :browser
+        :output-dir "public/js"
+        :asset-path "/js"
+
+        :modules
+        {:main
+         {:entries [app.core]}}
+
+        :devtools
+        {:http-root   "public"
+         :http-port   3000}}}}

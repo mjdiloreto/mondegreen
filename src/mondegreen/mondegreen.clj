@@ -16,7 +16,9 @@ An alternative name for this project could be \"oronyms\" https://en.wikipedia.o
 such that words match a list of phonemes given the list of acceptable replacements of phonemes.
 This would require a direct reverse mapping of [1].
 ")
+
 (defn parse-sentence
+  "Given the spelling of an English sentence, list all valid pronunciations of every word in the sentence."
   [sentence]
   (map word->pronunciations
        (->

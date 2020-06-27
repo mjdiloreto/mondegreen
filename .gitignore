@@ -1,15 +1,16 @@
-**/Makefile
-**/CMake*
-**/cmake*
-**/*_autogen
-**/compile_commands.json
-**/.clangd
-**/.idea
-**/target
-**/node_modules
-**/.svn
+/out/
+/public/js/
+/target/
+/*-init.clj
+/*.log
 
-# Cider files
-**/.cpcache
-**/.nrepl-port
-**/trace.edn
+# Leiningen
+/.lein-*
+/.nrepl-port
+
+# Node.js dependencies
+/node_modules/
+
+# shadow-cljs cache, port files
+# /shadow-cljs.edn # using shadow as the build tool, so need the config.
+/.shadow-cljs/
