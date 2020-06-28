@@ -3,29 +3,8 @@
             [clojure.set :refer [union]]
             [clojure.math.combinatorics :as combo]))
 
-(comment
-  "
-An alternative name for this project could be \"oronyms\" https://en.wikipedia.org/wiki/Juncture#Oronyms
-
-1.[x] Parse the dictionary to provide word -> phonetic mapping
-2. Create a scoring function, that given 2 phonemes gives a score reflecting how close they sound.
-2.1 alternatively just create a map of phoneme -> [phoneme...] that tells whether a certain phoneme can replace another.
-
-3? Create a reverse mapping
- list(phoneme), map(phoneme -> list(phoneme)) -> word
-such that words match a list of phonemes given the list of acceptable replacements of phonemes.
-This would require a direct reverse mapping of [1].
-")
-
-;; Dictionary files
-(def raw-dict (slurp "resources/cmudict-0.7b"))
-(def raw-phones (slurp "resources/cmudict-0.7b.phones"))
-(def raw-symbols (slurp "resources/cmudict-0.7b.symbols"))
-
-(def raw-word-counts (slurp "resources/count_1w.txt"))
-
 (def word-counts
-  (->> raw-word-counts
+  (->> (slurp "resources/count_1w.txt")
        (string/split-lines)
        (mapcat #(string/split % #"\t"))
        (take-nth 2)
@@ -35,44 +14,27 @@ This would require a direct reverse mapping of [1].
   [n]
   (set (take n word-counts)))
 
-(def syms
-  (->>
-   raw-phones
-   (string/split-lines)
-   (mapcat #(string/split % #"\t"))
-   (take-nth 2)
-   (set)))
-
-;; All of these characters are found in the dictionary.
-(def dictionary-chars #"^[A-Z'\-\.\_]+")
-
-(defn symbol->phone
-  "Converts a symbol found in the dictionary to just it's phonetic part
-  (i.e. no stress)"
-  [sym]
-  (re-find dictionary-chars sym))
-
-(defn word-ops
-  ; create both maps at once, spelling->pronunciation, pronunciation->spelling
-  [[spelling pronunciation]]
-  (let [spell (symbol->phone (first spelling))
-        pronun (map symbol->phone pronunciation)]
-    (if (every? (partial contains? syms) pronun)
-      [{spell [pronun]} {pronun [spell]}])))  ; can be many pronunciations of a word, and multiple words for a pronunciation.
-
-(defn line-ops
-  [line]
-  (->> line
-       (filter (complement #(.startsWith % ";")))  ; remove comments
-       (map #(filter not-empty (string/split % #"\s")))
-       (map (partial split-at 1))                  ; break into word/phones
-       (map word-ops)))
-
 (def maps-parts
-  (->>
-   raw-dict
-   (string/split-lines)
-   line-ops))
+  (let [dictionary-chars #"^[A-Z'\-\.\_]+" ; All of these characters valid characters an English word can contain.
+        symbol->phone (fn [sym] (re-find dictionary-chars sym))
+        syms (->>
+              (slurp "resources/cmudict-0.7b.phones")
+              (string/split-lines)
+              (mapcat #(string/split % #"\t"))
+              (take-nth 2)
+              (set))
+        ]
+    (->> (slurp "resources/cmudict-0.7b")
+         (string/split-lines)
+         (filter (complement #(.startsWith % ";")))
+         (map #(string/split % #"\s"))
+         (filter (complement empty?))
+         (map #(map symbol->phone %))
+         (filter (fn [[spelling _tab & pronunciation]]
+                    (every? (partial contains? syms) pronunciation)))
+         (map (fn [[spelling _tab & pronunciation]]
+                [{spelling [pronunciation]} {pronunciation [spelling]}]))
+         ))) ; create both maps at once, spelling->pronunciation, pronunciation->spelling
 
 (def word->pronunciations
   (reduce (partial merge-with into) (map first maps-parts)))
@@ -84,9 +46,7 @@ This would require a direct reverse mapping of [1].
   "Takes into account conjunctions and hyphenations"
   (word->pronunciations "THIS")        ;  [("DH" "IH" "S") ("DH" "IH" "S")]
   (word->pronunciations "THIS'LL")     ;  [("DH" "IH" "S" "AH" "L") ("DH" "IH" "S" "AH" "L")]
-  )
 
-(comment
   "These are common substitutions for mondegreens, A few key substitutions."
   (word->pronunciations "THEME")       ;  [("TH" "IY" "M")]
   (word->pronunciations "AWNING")      ;  [("AA" "N" "IH" "NG")]
@@ -105,40 +65,32 @@ This would require a direct reverse mapping of [1].
   (word->pronunciations "SCREAM")      ;  [("S" "K" "R" "IY" "M")]
   )
 
-;; To answer questions about the sequences of phonemes, we construct a trie and map over it with the appropriate substitution function.
-(defn word->nested-map
-  [phones word]
-  (if (empty? phones)
-    {:word word}
-    {:word nil
-     (first phones) (word->nested-map (rest phones) word)}))
-
-;; TODO move to util. https://clojuredocs.org/clojure.core/merge-with#example-5b80843ae4b00ac801ed9e74
-(defn deep-merge-with
-  "Like merge-with, but merges maps recursively, applying the given fn
-  only when there's a non-map at a particular level.
-  (deep-merge-with + {:a {:b {:c 1 :d {:x 1 :y 2}} :e 3} :f 4}
-                     {:a {:b {:c 2 :d {:z 9} :z 3} :e 100}})
-  -> {:a {:b {:z 3, :c 3, :d {:z 9, :x 1, :y 2}}, :e 103}, :f 4}"
-  [f & maps]
-  (apply
-   (fn m [& maps]
-     (if (every? map? maps)
-       (apply merge-with m maps)
-       (apply f maps)))
-   maps))
-
-(defn merge-non-nil
-  [a b]
-  (if (nil? a) b
-      (if (nil? b) a
-          (into a b))))
-
 (def pronunciations-trie
-  (apply
-   deep-merge-with
-   merge-non-nil
-   (map (fn [[k v]] (word->nested-map k v)) pronunciation->word)))
+  (letfn [(word->nested-map [phones word]
+            "To answer questions about the sequences of phonemes, we construct a trie and map over it with the appropriate substitution function."
+            (if (empty? phones)
+              {:word word}
+              {:word nil
+               (first phones) (word->nested-map (rest phones) word)}))
+
+          (deep-merge-with ; TODO move to util. https://clojuredocs.org/clojure.core/merge-with#example-5b80843ae4b00ac801ed9e74
+            [f & maps]
+            (apply
+             (fn m [& maps]
+               (if (every? map? maps)
+                 (apply merge-with m maps)
+                 (apply f maps)))
+             maps))
+
+          (merge-non-nil
+            [a b]
+            (if (nil? a) b
+                (if (nil? b) a
+                    (into a b))))]
+    (apply
+     deep-merge-with
+     merge-non-nil
+     (map (fn [[k v]] (word->nested-map k v)) pronunciation->word))))
 
 (defn pronun-valid?
   [pronunciation]
@@ -280,8 +232,7 @@ This would require a direct reverse mapping of [1].
   (mondegreen "I'll fuck any body")
   (mondegreen "I scream")
   (mondegreen "The sky")
-  (mondegreen "Baby duckling")
-  )
+  (mondegreen "Baby duckling"))
 
 (defn mondegreen2
   [sentence]
@@ -295,13 +246,14 @@ This would require a direct reverse mapping of [1].
   (mondegreen2 "please not while I'm eating")
   (mondegreen2 "I scream")
   (mondegreen2 "The sky")
-  (mondegreen2 "Baby duckling")
-  )
+  (mondegreen2 "Baby duckling"))
 
 ;; Ask someone if (list (list (list (first coll)))) is actually an issue. (I realize `(((~(first coll))))) works, but is it better?)
 ;; I don't imagine functions dealing with more deeply nested structures than this without an
 ;; intervening layer of abstraction, but maybe I'm wrong and doing things this way dooms
 ;; me to eternal suffering in hell '\_(o-o)_/'
+
+
 (defn reverse-order-partitions
   "Partition the seq in all ways that maintain order."
   [coll]
@@ -315,7 +267,7 @@ This would require a direct reverse mapping of [1].
                                         (list* (list (first c)) part)))
                        acc))))))
 
-(comment 
+(comment
   (reverse-order-partitions [1])
   (combo/partitions [1])
   (reverse-order-partitions [1 2])
@@ -323,8 +275,7 @@ This would require a direct reverse mapping of [1].
   (reverse-order-partitions [1 2 3])
   (combo/partitions [1 2 3])
   (reverse-order-partitions [1 2 3 4])
-  (combo/partitions [1 2 3 4])
-  )
+  (combo/partitions [1 2 3 4]))
 
 (defn reverse-order-partitions2
   [coll]
