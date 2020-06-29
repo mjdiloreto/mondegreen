@@ -22,19 +22,18 @@
               (string/split-lines)
               (mapcat #(string/split % #"\t"))
               (take-nth 2)
-              (set))
-        ]
+              (set))]
     (->> (slurp "resources/cmudict-0.7b")
          (string/split-lines)
          (filter (complement #(.startsWith % ";")))
          (map #(string/split % #"\s"))
          (filter (complement empty?))
-         (map #(map symbol->phone %))
+         (map #(map symbol->phone %)) ; TODO revise. at this point they are all nested operations.
          (filter (fn [[spelling _tab & pronunciation]]
                     (every? (partial contains? syms) pronunciation)))
          (map (fn [[spelling _tab & pronunciation]]
-                [{spelling [pronunciation]} {pronunciation [spelling]}]))
-         ))) ; create both maps at once, spelling->pronunciation, pronunciation->spelling
+                [{spelling [pronunciation]} {pronunciation [spelling]}])) ; create both maps at once, spelling->pronunciation, pronunciation->spelling
+         )))
 
 (def word->pronunciations
   (reduce (partial merge-with into) (map first maps-parts)))
@@ -105,6 +104,41 @@
   (pronun-valid? '("DH" "IY"))
   (pronun-valid? '("DH" "IY")))
 
+(def equivalence-classes
+  "It would be better to base these substitutions on some kind of linguistic data. I bet it exists."
+  [#{"AA" "AO" "AW" "AH" "UH"}
+   #{"AY" "AE"}
+   #{"B"}
+   #{"CH"}
+   #{"D"}
+   #{"DH" "TH"}
+   #{"EH" "IH"}
+   #{"EY"} ; Maybe can be paired up?
+   #{"ER" "R"}
+   #{"F"}
+   #{"G" "K"}
+   #{"HH"} ; This would be a good candidate for deletion. Maybe also goes with "EH"?
+   #{"IY"} ; Maybe goes with "IH", but probably not "EH"... Maybe these shouldn't be sets?
+   #{"JH" "ZH"}
+   #{"L"}
+   #{"M"}
+   #{"N"}
+   #{"NG"} ; Can go with N+G when splitting one phoneme into multiple is allowed.
+   #{"OW"} ; All diphthongs can probably go with their constituent monophthongs. e.g. AA+UW
+   #{"OY"}
+   #{"P"}
+   #{"SH"} ; Maybe belongs with "S"
+   #{"T"} ; Can this go with "D"? Is that too jarring.
+   #{"V"}
+   #{"W"}
+   #{"Y"}
+   #{"S" "Z"}])
+
+(defn valid-replacements
+  "Which phonemenes can be used to represent the given one?"
+  [phone]
+  (apply vector (apply union (filter #(% phone) equivalence-classes))))
+
 (defn parse-sentence
   [sentence]
   (map word->pronunciations
@@ -145,40 +179,6 @@
    ("N" "AA" "T" "HH" "W" "AY" "L" "AY" "M" "IY" "T" "IH" "NG")
    ("N" "AA" "T" "HH" "W" "AY" "L" "AH" "M" "IY" "T" "IH" "NG")))
 
-(def equivalence-classes
-  "It would be better to base these substitutions on some kind of linguistic data. I bet it exists."
-  [#{"AA" "AO" "AW" "AH" "UH"}
-   #{"AY" "AE"}
-   #{"B"}
-   #{"CH"}
-   #{"D"}
-   #{"DH" "TH"}
-   #{"EH" "IH"}
-   #{"EY"} ; Maybe can be paired up?
-   #{"ER" "R"}
-   #{"F"}
-   #{"G" "K"}
-   #{"HH"} ; This would be a good candidate for deletion. Maybe also goes with "EH"?
-   #{"IY"} ; Maybe goes with "IH", but probably not "EH"... Maybe these shouldn't be sets?
-   #{"JH" "ZH"}
-   #{"L"}
-   #{"M"}
-   #{"N"}
-   #{"NG"} ; Can go with N+G when splitting one phoneme into multiple is allowed.
-   #{"OW"} ; All diphthongs can probably go with their constituent monophthongs. e.g. AA+UW
-   #{"OY"}
-   #{"P"}
-   #{"SH"} ; Maybe belongs with "S"
-   #{"T"} ; Can this go with "D"? Is that too jarring.
-   #{"V"}
-   #{"W"}
-   #{"Y"}
-   #{"S" "Z"}])
-
-(defn valid-replacements
-  "Which phonemenes can be used to represent the given one?"
-  [phone]
-  (apply vector (apply union (filter #(% phone) equivalence-classes))))
 
 (defn pronunciation->sentence
   "Can this series of phonemes be parsed as a collection of English words? Find one answer containing no words from the set of words in the original sentence."
@@ -201,29 +201,13 @@
                 :else (search-substitutions prev-phones next-phones))))]
     (find-pronuns [] pronunciation)))
 
-;; From scratch a second time to get more ideas.
-(defn search-shortest-words-first
-  [pronunciation original-sentence]
-  (letfn [(word? [phones]
-            (and (not (original-sentence phones))
-                 (:word (pronun-valid? phones))))]
-    (loop [current-phones (vector (first pronunciation)) remaining-phones (rest pronunciation)]
-      (let [word (word? current-phones)]
-        (cond (and word (empty? remaining-phones)) (list word) ; return the last word, or nil if none found
-              (empty? remaining-phones) nil ; there is no solution here
-              word (if-let [rest-of-sentence (search-shortest-words-first remaining-phones original-sentence)]
-                     (cons word rest-of-sentence)
-                     (recur (conj current-phones (first remaining-phones))
-                            (rest remaining-phones)))
-              :else (recur (conj current-phones (first remaining-phones))
-                           (rest remaining-phones)))))))
 
 (defn mondegreen
   [sentence]
   (let [parsed (parse-sentence sentence)
         original-sentence (set (mapcat identity parsed))
         pronunciations (sentence->pronunciations parsed)]
-    (pronunciation->sentence (first pronunciations) original-sentence)))
+    (pronunciation->sentence (first pronunciations) original-sentence))) ;TODO search through the pronunciations also
 
 (comment
   (mondegreen "please not while I'm eating")
@@ -233,54 +217,4 @@
   (mondegreen "I scream")
   (mondegreen "The sky")
   (mondegreen "Baby duckling"))
-
-(defn mondegreen2
-  [sentence]
-  (let [parsed (parse-sentence sentence)
-        original-sentence (set (mapcat identity parsed))
-        pronunciations (sentence->pronunciations parsed)
-        selected-pronunciation (first pronunciations)
-        partitions (combo/partitions selected-pronunciation)]
-    (search-shortest-words-first selected-pronunciation original-sentence)))
-(comment
-  (mondegreen2 "please not while I'm eating")
-  (mondegreen2 "I scream")
-  (mondegreen2 "The sky")
-  (mondegreen2 "Baby duckling"))
-
-;; Ask someone if (list (list (list (first coll)))) is actually an issue. (I realize `(((~(first coll))))) works, but is it better?)
-;; I don't imagine functions dealing with more deeply nested structures than this without an
-;; intervening layer of abstraction, but maybe I'm wrong and doing things this way dooms
-;; me to eternal suffering in hell '\_(o-o)_/'
-
-
-(defn reverse-order-partitions
-  "Partition the seq in all ways that maintain order."
-  [coll]
-  (if (empty? coll)
-    '()
-    (loop [c (rest coll) acc (list (list (list (first coll))))]
-      (if (empty? c)
-        acc
-        (recur (rest c)
-               (mapcat (fn [part] (list (list* (cons (first c) (first part)) (rest part))  ; TODO modify this to test for validity in my app.
-                                        (list* (list (first c)) part)))
-                       acc))))))
-
-(comment
-  (reverse-order-partitions [1])
-  (combo/partitions [1])
-  (reverse-order-partitions [1 2])
-  (combo/partitions [1 2])
-  (reverse-order-partitions [1 2 3])
-  (combo/partitions [1 2 3])
-  (reverse-order-partitions [1 2 3 4])
-  (combo/partitions [1 2 3 4]))
-
-(defn reverse-order-partitions2
-  [coll]
-  (reduce (map (fn [acc x] (map #(cons x %))))
-          '()))
-
-
 
